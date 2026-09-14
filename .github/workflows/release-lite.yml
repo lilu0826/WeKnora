@@ -246,6 +246,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          export PATH="$(dirname "$CC"):$PATH"
+          gcc --version
+          g++ --version
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
           export CGO_CFLAGS="${CGO_CFLAGS:--Wno-deprecated-declarations}"
           cd cmd/desktop
@@ -255,6 +258,10 @@ jobs:
       - name: Build desktop app
         shell: bash
         run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # Wails removes CC during binding generation and resolves gcc from PATH.
+            export PATH="$(dirname "$CC"):$PATH"
+          fi
           export EDITION=lite
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
           eval "$(./scripts/get_version.sh env)"
