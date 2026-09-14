@@ -246,7 +246,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          export PATH="$(dirname "$CC"):$PATH"
+          export PATH="$(cygpath -u "$(dirname "$CC")"):$PATH"
           gcc --version
           g++ --version
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
@@ -260,7 +260,7 @@ jobs:
         run: |
           if [ "${{ runner.os }}" = "Windows" ]; then
             # Wails removes CC during binding generation and resolves gcc from PATH.
-            export PATH="$(dirname "$CC"):$PATH"
+            export PATH="$(cygpath -u "$(dirname "$CC")"):$PATH"
           fi
           export EDITION=lite
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
