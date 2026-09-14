@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VERSION="${1:?Usage: $0 <version>  (e.g. v0.2.0)}"
 VERSION_BARE="${VERSION#v}"
 FORMULA="${ROOT_DIR}/Formula/weknora-lite.rb"
-REPO="Tencent/WeKnora"
+REPO="${GITHUB_REPOSITORY:-Tencent/WeKnora}"
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 
 if [ ! -f "${FORMULA}" ]; then
@@ -31,7 +31,7 @@ fetch_sha256() {
     local file="$1"
     local url="${BASE_URL}/${file}.sha256"
     local sha
-    sha=$(curl -sSL "${url}" | awk '{print $1}')
+    sha=$(curl -fsSL "${url}" | awk '{print $1}')
     if [ -z "${sha}" ] || [ "${#sha}" -ne 64 ]; then
         echo "Error: Failed to fetch sha256 from ${url}" >&2
         exit 1
@@ -55,6 +55,9 @@ cp "${FORMULA}" "${TMP}"
 
 # Update version
 sed -i.bak "s/^  version \".*\"/  version \"${VERSION_BARE}\"/" "${TMP}"
+
+# Download URLs must point to the repository that published these checksums.
+sed -i.bak "s|https://github.com/[^/]*/[^/]*/releases/download/|https://github.com/${REPO}/releases/download/|g" "${TMP}"
 
 # Update sha256 values in order of appearance.
 # The formula has sha256 lines in this order:

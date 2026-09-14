@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: actions/setup-node@v6
         with:
@@ -70,6 +72,8 @@ jobs:
       CGO_ENABLED: 1
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: actions/setup-go@v6
         with:
@@ -97,7 +101,7 @@ jobs:
           export EDITION=lite
           eval "$(./scripts/get_version.sh env)"
           LDFLAGS="-w -s $(./scripts/get_version.sh ldflags)"
-          export CGO_CFLAGS="-Wno-deprecated-declarations"
+          export CGO_CFLAGS="${CGO_CFLAGS:--Wno-deprecated-declarations}"
           if [ "${{ matrix.goos }}" = "darwin" ]; then
             export CGO_LDFLAGS="-Wl,-no_warn_duplicate_libraries"
           fi
@@ -165,6 +169,8 @@ jobs:
       CGO_ENABLED: 1
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: actions/setup-go@v6
         with:
@@ -189,6 +195,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
+      - name: Prepare SQLite headers (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          go mod download github.com/mattn/go-sqlite3
+          SQLITE_DIR=$(go list -m -f '{{.Dir}}' github.com/mattn/go-sqlite3)
+          SQLITE_INCLUDE="$(cygpath -m "$RUNNER_TEMP")/sqlite-include"
+          mkdir -p "${SQLITE_INCLUDE}"
+          # sqlite-vec must compile against the SQLite version embedded by go-sqlite3.
+          cp "${SQLITE_DIR}/sqlite3-binding.h" "${SQLITE_INCLUDE}/sqlite3.h"
+          cp "${SQLITE_DIR}/sqlite3ext.h" "${SQLITE_INCLUDE}/sqlite3ext.h"
+          echo "CGO_CFLAGS=-Wno-deprecated-declarations -I${SQLITE_INCLUDE}" >> "$GITHUB_ENV"
+
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
         run: choco install nsis -y
@@ -209,9 +228,9 @@ jobs:
         shell: bash
         run: |
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
-          export CGO_CFLAGS="-Wno-deprecated-declarations"
+          export CGO_CFLAGS="${CGO_CFLAGS:--Wno-deprecated-declarations}"
           cd cmd/desktop
-          go build -p 1 -buildvcs=false -tags "desktop,sqlite_fts5,production" -o _prebuild_tmp.exe . || true
+          go build -p 1 -buildvcs=false -tags "desktop,sqlite_fts5,production" -o _prebuild_tmp.exe .
           rm -f _prebuild_tmp.exe
 
       - name: Build desktop app
@@ -221,7 +240,7 @@ jobs:
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
           eval "$(./scripts/get_version.sh env)"
           LDFLAGS="$(./scripts/get_version.sh ldflags) -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'"
-          export CGO_CFLAGS="-Wno-deprecated-declarations"
+          export CGO_CFLAGS="${CGO_CFLAGS:--Wno-deprecated-declarations}"
 
           BUILD_TAGS="sqlite_fts5"
           NSIS_FLAG=""
@@ -329,6 +348,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: actions/download-artifact@v8
         with:
@@ -409,11 +430,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.ver.outputs.version }}" \
+            --verify-tag \
             --title "WeKnora Lite ${{ steps.ver.outputs.version }}" \
             --notes-file notes.md \
             WeKnora-lite_*.tar.gz \
             WeKnora-lite_*.tar.gz.sha256 \
-            WeKnora-Lite-App_* || true
+            WeKnora-Lite-App_*
 
   # ── 4. Update Homebrew Formula ──
   update-homebrew:
