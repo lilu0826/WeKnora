@@ -376,7 +376,12 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            WeKnora-Lite-App_*
+            WeKnora-Lite-App_*.tar.gz
+            WeKnora-Lite-App_*.tar.gz.sha256
+            WeKnora-Lite-App_*.dmg
+            WeKnora-Lite-App_*.dmg.sha256
+            WeKnora-Lite-App_*_setup.exe
+            WeKnora-Lite-App_*_setup.exe.sha256
           retention-days: 3
 
   # ── 3. Create GitHub Release ──
@@ -466,13 +471,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.ver.outputs.version }}" \
-            --verify-tag \
-            --title "WeKnora Lite ${{ steps.ver.outputs.version }}" \
-            --notes-file notes.md \
-            WeKnora-lite_*.tar.gz \
-            WeKnora-lite_*.tar.gz.sha256 \
-            WeKnora-Lite-App_*
+          VERSION="${{ steps.ver.outputs.version }}"
+          ASSETS=(
+            WeKnora-lite_*.tar.gz
+            WeKnora-lite_*.tar.gz.sha256
+            WeKnora-Lite-App_*.tar.gz
+            WeKnora-Lite-App_*.tar.gz.sha256
+            WeKnora-Lite-App_*.dmg
+            WeKnora-Lite-App_*.dmg.sha256
+            WeKnora-Lite-App_*_setup.exe
+            WeKnora-Lite-App_*_setup.exe.sha256
+          )
+          for asset in "${ASSETS[@]}"; do test -f "$asset"; done
+          sha256sum -c WeKnora-*.sha256
+          if gh release view "$VERSION" --json isDraft > release.json 2>/dev/null; then
+            # A failed asset upload leaves a draft; published releases stay immutable.
+            jq -e '.isDraft == true' release.json
+            gh release upload "$VERSION" "${ASSETS[@]}" --clobber
+            gh release edit "$VERSION" --draft=false \
+              --title "WeKnora Lite $VERSION" --notes-file notes.md
+          else
+            gh release create "$VERSION" --verify-tag \
+              --title "WeKnora Lite $VERSION" --notes-file notes.md \
+              "${ASSETS[@]}"
+          fi
 
   # ── 4. Update Homebrew Formula ──
   update-homebrew:
