@@ -230,7 +230,16 @@ jobs:
 
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
-        run: choco install nsis -y
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS installation failed' }
+          $nsisDirectory = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
+          $makensis = Join-Path $nsisDirectory 'makensis.exe'
+          if (-not (Test-Path -LiteralPath $makensis)) { throw 'NSIS compiler not found' }
+          $nsisDirectory >> $env:GITHUB_PATH
+          & $makensis /VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS compiler verification failed' }
 
       - name: Resolve version
         id: ver
