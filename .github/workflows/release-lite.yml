@@ -99,6 +99,7 @@ jobs:
       - name: Build
         run: |
           export EDITION=lite
+          export GITHUB_SHA="$(git rev-parse HEAD)"
           eval "$(./scripts/get_version.sh env)"
           LDFLAGS="-w -s $(./scripts/get_version.sh ldflags)"
           export CGO_CFLAGS="${CGO_CFLAGS:--Wno-deprecated-declarations}"
@@ -195,24 +196,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      - name: Install UCRT64 toolchain (Windows)
+      - name: Install GCC 14.2 UCRT toolchain (Windows)
         if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: mingw-w64-ucrt-x86_64-gcc
-
-      - name: Select UCRT64 compilers (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          # DuckDB's static libraries require UCRT; all C/C++ dependencies must use it.
-          echo "CC=$(cygpath -m /ucrt64/bin/gcc.exe)" >> "$GITHUB_ENV"
-          echo "CXX=$(cygpath -m /ucrt64/bin/g++.exe)" >> "$GITHUB_ENV"
-          cygpath -m /ucrt64/bin >> "$GITHUB_PATH"
-          gcc --version
-          g++ --version
+          # Match DuckDB's Windows static-library toolchain; GCC 16 changed its TLS ABI.
+          $archive = Join-Path $env:RUNNER_TEMP 'gcc-14.2-ucrt.7z'
+          $destination = Join-Path $env:RUNNER_TEMP 'gcc-14.2-ucrt'
+          Invoke-WebRequest -Uri 'https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev0/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev0.7z' -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '0F1AFC3B48F66DDA68FBFB7B8B0F1D22B831396FBE1E3DEA776745F32D930B24') {
+            throw 'GCC toolchain checksum mismatch'
+          }
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          tar -xf $archive -C $destination
+          if ($LASTEXITCODE -ne 0) { throw 'GCC toolchain extraction failed' }
+          $compilerBin = (Join-Path $destination 'mingw64/bin').Replace('\', '/')
+          "CC=$compilerBin/gcc.exe" >> $env:GITHUB_ENV
+          "CXX=$compilerBin/g++.exe" >> $env:GITHUB_ENV
+          $compilerBin >> $env:GITHUB_PATH
 
       - name: Prepare SQLite headers (Windows)
         if: runner.os == 'Windows'
@@ -263,6 +264,7 @@ jobs:
             export PATH="$(cygpath -u "$(dirname "$CC")"):$PATH"
           fi
           export EDITION=lite
+          export GITHUB_SHA="$(git rev-parse HEAD)"
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
           eval "$(./scripts/get_version.sh env)"
           LDFLAGS="$(./scripts/get_version.sh ldflags) -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'"
