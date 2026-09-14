@@ -195,6 +195,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
+      - name: Install UCRT64 toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc
+
+      - name: Select UCRT64 compilers (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          # DuckDB's static libraries require UCRT; all C/C++ dependencies must use it.
+          echo "CC=$(cygpath -m /ucrt64/bin/gcc.exe)" >> "$GITHUB_ENV"
+          echo "CXX=$(cygpath -m /ucrt64/bin/g++.exe)" >> "$GITHUB_ENV"
+          cygpath -m /ucrt64/bin >> "$GITHUB_PATH"
+          gcc --version
+          g++ --version
+
       - name: Prepare SQLite headers (Windows)
         if: runner.os == 'Windows'
         shell: bash
